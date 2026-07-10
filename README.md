@@ -8,7 +8,7 @@ Production-grade AI Skill quality evaluator with hard assertions, red-team adver
 
 生产级 AI Skill 可靠性评测器，基于硬断言矩阵、红队对抗测试和非线性惩罚评分体系，拒绝分数通胀。
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](SKILL.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](SKILL.md)
 [![LLM Calls](https://img.shields.io/badge/LLM%20Calls-13%2Fskill-lightblue)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
 [![Cost](https://img.shields.io/badge/cost-%C2%A50.2%2Fskill-brightgreen)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
 [![HRR Tier](https://img.shields.io/badge/HRR%20Tier-S%20(Production)-success)](references/scoring-formulas.md#%E8%AF%84%E5%88%86%E7%AD%89%E7%BA%A7%E4%B8%8E-hrr-%E5%88%86%E7%BA%A7)
@@ -149,7 +149,7 @@ Two structured objects, strictly following the data contract:
 - Test cases are not real users (see `references/test-cases-*.md`)
 - Score drift may occur with model upgrades (quarterly re-evaluation recommended)
 - Safety/robustness keywords can be bypassed (two-stage judgment mitigates but doesn't eliminate)
-- Default brief has domain bias (marketing default, auto-selects technical if applicable)
+- Adaptive brief has domain coverage limits (auto-generated from capability semantics; for niche domains, manual `task_brief` recommended)
 
 > **Do not treat evaluation scores as absolute truth.** They are relative reliability signals from a fixed test suite for cold-start trust building, not a substitute for real user feedback.
 
@@ -274,10 +274,11 @@ function applyPenalty(rawScore):
 
 ## Provenance
 
-- **Built with:** Skill Compiler (Full mode) + SkillForge Audit-Only (v1.2)
+- **Built with:** Skill Compiler (Full mode) + SkillForge Improve (v1.3)
 - **Source:** XSkill Agent Reliability Engineering (ARE) evaluation framework v1.1
-- **Version:** 1.2.0
+- **Version:** 1.3.0
 - **Design Decision:** Pipeline architecture — 6 independent dimensions → aggregation → penalty → grading. Evaluation logic decoupled from runtime, results stored in DB for frontend direct reads.
+- **v1.3 变更：** 将维度 1 业务增益度从营销偏向重构为领域无关；硬断言改为约束响应/量化交付/执行步骤/领域深度/生产级；Brief 模板改为语义自适应生成
 
 ---
 

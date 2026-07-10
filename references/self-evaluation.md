@@ -8,7 +8,7 @@
 
 ## 维度 1：业务增益度 `business`（25%）
 
-xskill-are 是一个元技能（meta-skill），其"业务"是评测其他 AI Skill。由于默认测试 Brief 为营销场景，元技能本身不属于营销类技能，此维度不适合通过标准业务 Brief 测试。
+xskill-are 是一个元技能（meta-skill），其"业务"是评测其他 AI Skill。维度 1 的业务增益度测试依赖被评测 Skill 的 capability 生成自适应 Brief，元技能自身不属于任何具体应用领域，此维度不适合通过标准业务 Brief 测试。
 
 **得分：** N/A（不适用）— 元技能的"业务"是其自身评测质量，通过全 pipeline 的采纳来验证
 
