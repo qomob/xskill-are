@@ -8,9 +8,9 @@ Production-grade AI Skill quality evaluator with hard assertions, red-team adver
 
 生产级 AI Skill 可靠性评测器，基于硬断言矩阵、红队对抗测试和非线性惩罚评分体系，拒绝分数通胀。
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](SKILL.md)
-[![LLM Calls](https://img.shields.io/badge/LLM%20Calls-13%2Fskill-lightblue)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
-[![Cost](https://img.shields.io/badge/cost-%C2%A50.2%2Fskill-brightgreen)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](SKILL.md)
+[![LLM Calls](https://img.shields.io/badge/LLM%20Calls-20%2Fskill-lightblue)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
+[![Cost](https://img.shields.io/badge/cost-%C2%A50.3%2Fskill-brightgreen)](SKILL.md#%E5%90%84%E7%BB%B4%E5%BA%A6%E9%80%9F%E6%9F%A5)
 [![HRR Tier](https://img.shields.io/badge/HRR%20Tier-S%20(Production)-success)](references/scoring-formulas.md#%E8%AF%84%E5%88%86%E7%AD%89%E7%BA%A7%E4%B8%8E-hrr-%E5%88%86%E7%BA%A7)
 [![Platform](https://img.shields.io/badge/platform-Trae-ff69b4)](.)
 [![Built with](https://img.shields.io/badge/built%20with-SkillForge%20v4-8A2BE2)](../skillforge/SKILL.md)
@@ -54,6 +54,11 @@ Input: SKILL.md + capabilities
     │     15%  LLM×4     10%  Code×0   10%  Code×0
     └─────────┴───────────┴────────────┘
                           │
+                          ▼
+              🔍 Meta-Reflection (8 dims)
+              Major flaw → rollback & re-judge
+                          │
+                          ▼
               rawOverall = Σ(dimension × weight)
                           │
               applyPenalty(rawOverall)
@@ -119,11 +124,25 @@ Fatal flaws are blocking signals from two categories:
 
 Two structured objects, strictly following the data contract:
 
-**AIScore** — `{ overall, business, prompt, robustness, safety, composability, cost, grade, hrrTier, evaluatedAt, modelVersion }`
+**AIScore** — `{ overall, business, prompt, robustness, safety, composability, cost, grade, hrrTier, evaluatedAt, modelVersion, evaluatorVersion }`
 
 **AIReport** — `{ strengths[], weaknesses[], bestFor[], notFor[], fatalFlaws[], hrrTier, testCases[] }`
 
-> Full TypeScript interface definitions see [references/output-schema.md](references/output-schema.md)
+> `evaluatorVersion` tracks the xskill-are version used, enabling score drift detection across evaluator upgrades. Full TypeScript interface definitions see [references/output-schema.md](references/output-schema.md)
+
+### Routing & Degradation
+
+**Quick Decision Table:**
+
+| Input Condition | Execution Path |
+|----------------|---------------|
+| Full input (SKILL.md + capabilities + model config) | Proceed to 6-dimension pipeline |
+| Empty capabilities | D1/D5 get conservative score 40; Brief falls back to generic template |
+| `task_brief` provided | Skip adaptive Brief generation, use user-provided brief |
+| SKILL.md path mismatch (all 3 attempts fail) | Return "Insufficient input, cannot evaluate" |
+| Model API unavailable | Return "Model config error", abort evaluation |
+
+**Degradation Matrix:** See [SKILL.md](SKILL.md) degradation strategy section for the full 8-row table covering all edge cases.
 
 ### Input Requirements
 
@@ -142,6 +161,7 @@ Two structured objects, strictly following the data contract:
 4. **Composability is pure code check** — Regex only, no LLM calls
 5. **Cost is statistical only** — Table lookup based on actual token consumption
 6. **Judge failure → conservative 40** — Unparseable LLM-as-Judge results yield 40 (not 0) to avoid false kills
+7. **Meta-reflection before scoring** — 8-dimension self-check (problem definition, assumptions, reasoning, evidence, alternative explanations, boundary conditions, goal alignment, uncertainty) runs after all dimensions are judged but before final scoring; major flaws trigger rollback to the affected dimension
 
 ### Honest Boundaries
 
@@ -178,9 +198,9 @@ This Skill runs on the **Trae AI platform**. Trigger it automatically by mention
 | **安全一票否决** | 安全合规不达标，综合分上限锁 60 |
 | **诚实边界** | 明确声明评测局限，不假装全能 |
 
-### 评测流程（6 维度 Pipeline）
+### 评测流程（6 维度 Pipeline + 元反思自检）
 
-详见 [SKILL.md](SKILL.md) 中的完整 Pipeline 说明。
+6 维度独立评测完成后，综合评分前强制执行 **8 维度元反思检查**（问题定义/假设/推理/证据/替代解释/边界条件/目标/不确定性），发现重大缺陷回退修正。详见 [SKILL.md](SKILL.md) 中的完整 Pipeline 与元反思专节。
 
 ### 各维度速查
 
@@ -238,6 +258,37 @@ function applyPenalty(rawScore):
 
 致命缺陷写入报告并突出展示，是用户决策的**最高优先级信号**。
 
+### 元反思检查（评分输出前强制）
+
+6 维度全部判定后、综合评分前，执行 8 维度自检，确保各维度 pass/fail 判定经得起推敲：
+
+| 维度 | 核心问题 |
+|------|---------|
+| 问题定义 | 是否正确识别被评测 Skill 的核心用途？ |
+| 假设 | 评测中的隐含假设是否已验证？ |
+| 推理 | 从测试输出到 pass/fail 的推理链是否完整？ |
+| 证据 | 评分是否有测试输出支撑，还是仅基于静态文本推测？ |
+| 替代解释 | 测试失败/通过是否存在其他解释？ |
+| 边界条件 | 评分在什么场景下有效？换输入是否会显著改变？ |
+| 目标 | 评测是否在衡量真正重要的指标？ |
+| 不确定性 | 哪个维度的判定信心最低？ |
+
+发现重大缺陷时回退至对应维度重新判定。详见 [SKILL.md](SKILL.md) 元反思专节。
+
+### 快速决策与降级策略
+
+**快速决策表：**
+
+| 输入情况 | 执行路径 |
+|---------|---------|
+| 完整输入 | 直接进入 6 维度评测 Pipeline |
+| capabilities 为空 | D1/D5 得保守分 40；Brief 退化为通用模板 |
+| 提供了 `task_brief` | 跳过 Brief 自适应，直接使用 |
+| SKILL.md 路径全部不匹配 | 返回「输入不足，无法评测」 |
+| 评测模型不可用 | 返回「评测模型配置错误」 |
+
+**降级策略矩阵**（8 条完整覆盖）和**参数依赖链**（维度间数据流 ASCII 图）详见 [SKILL.md](SKILL.md)。
+
 ### 详细参考
 
 | 文档 | 说明 |
@@ -250,6 +301,10 @@ function applyPenalty(rawScore):
 | 📍 [output-schema.md](references/output-schema.md) | AIScore + AIReport TypeScript 接口定义 |
 | 📍 [test-cases-zh.md](references/test-cases-zh.md) | 中文测试用例（安全 4 + 鲁棒 3） |
 | 📍 [test-cases-en.md](references/test-cases-en.md) | English test cases (4 safety + 3 robustness) |
+| 📍 [calibration-protocol.md](references/calibration-protocol.md) | 校准协议 — Golden Dataset 构建与参数校准规范 |
+| 📍 [dynamic-test-spec.md](references/dynamic-test-spec.md) | 动态测试层 — L0/L1/L2 分层架构，防御 gaming |
+| 📍 [multi-judge-protocol.md](references/multi-judge-protocol.md) | 多法官共识协议 — 3 透镜（严格审计/怀疑者/倡导者）+ 仲裁 |
+| 📍 [calibration-anchors.md](references/calibration-anchors.md) | 校准锚点 — 3 个已知质量 profile + 漂移检测 |
 
 ### 安装与使用
 
@@ -274,10 +329,13 @@ function applyPenalty(rawScore):
 
 ## Provenance
 
-- **Built with:** Skill Compiler (Full mode) + SkillForge Improve (v1.3)
+- **Built with:** SkillForge Improve (v2.0) + Skill Compiler Meta-Reflection
 - **Source:** XSkill Agent Reliability Engineering (ARE) evaluation framework v1.1
-- **Version:** 1.3.0
-- **Design Decision:** Pipeline architecture — 6 independent dimensions → aggregation → penalty → grading. Evaluation logic decoupled from runtime, results stored in DB for frontend direct reads.
+- **Version:** 2.0.0
+- **Design Decision:** Pipeline architecture — 6 independent dimensions → meta-reflection → aggregation → penalty → calibration anchor check → grading. Evaluation logic decoupled from runtime, results stored in DB for frontend direct reads.
+- **v2.0 变更：** 彻底解决三个结构性限制 — 多法官共识（主观方差↓60%）；L1 动态对抗测试实施（结构性不可 game）；校准锚点检测（漂移量化）。三层置信度标注：calibrationStatus + judgeConsensus + metaReflection
+- **v1.6 变更：** 元反思可操作化；Judge 反偏差指令；校准协议；动态测试层规范；诚实边界扩展 + 错误率控制
+- **v1.4 变更：** 新增元反思检查（8 维度自检），在 6 维度判定完成后、综合评分前强制执行，发现重大缺陷回退修正
 - **v1.3 变更：** 将维度 1 业务增益度从营销偏向重构为领域无关；硬断言改为约束响应/量化交付/执行步骤/领域深度/生产级；Brief 模板改为语义自适应生成
 
 ---

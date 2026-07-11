@@ -30,6 +30,23 @@ interface AIScore {
   evaluatedAt: string;
   /** 评测模型版本 */
   modelVersion: string;
+  /** 评测器版本（xskill-are 版本，用于追踪评分漂移） */
+  evaluatorVersion: string;
+  /** 校准漂移量（锚点实测D1 - 预期D1 的绝对值） */
+  calibrationDelta: number;
+  /** 校准状态：CALIBRATED | DRIFT_WARNING | DRIFT_ALERT */
+  calibrationStatus: string;
+  /** 多法官一致性结果 */
+  judgeConsensus: JudgeConsensus;
+}
+
+interface JudgeConsensus {
+  /** 法官一致比例（全一致断言数/总断言数） */
+  agreement: number;
+  /** 分歧断言列表 */
+  disputedAssertions: string[];
+  /** 是否触发仲裁 */
+  arbitrationTriggered: boolean;
 }
 ```
 
@@ -76,6 +93,19 @@ interface AIReport {
   hrrTier: string;
   /** 测试用例结果 */
   testCases: TestCase[];
+  /** 元反思结果 */
+  metaReflection: MetaReflection;
+}
+
+interface MetaReflection {
+  /** 是否通过（flaggedIssues < 2 为 pass） */
+  passed: boolean;
+  /** 标记的问题数量 */
+  flaggedIssues: number;
+  /** 标记的维度（问题定义/假设/推理/证据/替代解释/边界条件/目标/不确定性） */
+  flaggedDimensions: string[];
+  /** 触发回退的维度（如有） */
+  rolledBackDimensions: string[];
 }
 
 interface TestCase {
