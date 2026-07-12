@@ -11,7 +11,7 @@
   1. 用同一批评官透镜，对 1 个锚点 Skill 执行 D1（业务增益度）评测
   2. 比较锚点的实测 D1 分数与预期分数
   3. 差值 = calibrationDelta
-  4. calibrationDelta > 15 → 标记「校准漂移」，分数置信度降低
+  4. calibrationDelta > 20 → 标记「校准漂移」，分数置信度降低
 ```
 
 锚点轮换：3 个锚点轮流使用，每次评测取 1 个（`anchorRotation = evalCount % 3`）。

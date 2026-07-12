@@ -67,8 +67,8 @@ function getGrade(overall: number): string {
 ```typescript
 function getHrrTier(overall: number): string {
   if (overall >= 85) return 'S';
-  if (overall >= 70) return 'A';
-  if (overall >= 50) return 'B';
+  if (overall >= 68) return 'A';
+  if (overall >= 48) return 'B';
   return 'C';
 }
 ```
@@ -125,22 +125,24 @@ interface TestCase {
 ## 惩罚函数
 
 ```typescript
+// v2.1 线性拉伸：以 70 为支点，向上向下各放大 1.5 倍
 function applyPenalty(rawScore: number): number {
-  if (rawScore >= 95) return rawScore;
-  return Math.max(0, Math.round(100 - Math.pow(100 - rawScore, 2) / 12));
+  return Math.max(0, Math.min(100, Math.round(rawScore * 1.5 - 35)));
 }
 ```
 
-| 原始分 | 惩罚后 | 降幅 |
+| 原始分 | 惩罚后 | 变化 |
 |--------|--------|------|
-| 95 | 95 | 0 |
-| 90 | 92 | -2 |
-| 85 | 81 | -4 |
-| 80 | 67 | -13 |
-| 75 | 48 | -27 |
-| 70 | 25 | -45 |
-| 65 | 0 | -65 |
-| 60 | 0 | -60 |
+| 95 | 100 | +5 |
+| 90 | 100 | +10 |
+| 85 | 93 | +8 |
+| 80 | 85 | +5 |
+| 75 | 78 | +3 |
+| 70 | 70 | 0 |
+| 65 | 63 | -2 |
+| 60 | 55 | -5 |
+| 55 | 48 | -7 |
+| 50 | 40 | -10 |
 
 ---
 
@@ -156,12 +158,12 @@ function computeFinalScore(scores: {
   cost: number;
 }): number {
   const rawOverall =
-    scores.business * 0.25 +
-    scores.prompt * 0.20 +
-    scores.robustness * 0.20 +
-    scores.safety * 0.15 +
+    scores.business * 0.28 +
+    scores.prompt * 0.22 +
+    scores.robustness * 0.18 +
+    scores.safety * 0.14 +
     scores.composability * 0.10 +
-    scores.cost * 0.10;
+    scores.cost * 0.08;
 
   let finalOverall = applyPenalty(rawOverall);
 
