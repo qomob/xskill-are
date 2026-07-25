@@ -449,6 +449,5 @@ function applyPenalty(rawScore):
   <img src="https://qomob.ai/xskill.jpg" width="600" alt="XSkill">
 </div>
 
-Copyright 2026 Qomob.ai & XSkill.dev
 
 ---
