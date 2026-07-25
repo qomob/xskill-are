@@ -1,7 +1,7 @@
 ---
 name: xskill-are
-version: "2.1.1"
-description: "Use when 评测AI Skill质量、打分、可靠性测试、Skill评分、智能体评测、Agent Reliability Engineering、红队对抗测试、混沌鲁棒性、安全合规审查、冷启动信任评估。Triggers on: 评测skill, skill打分, 可靠性评估, 红队测试, 安全审查, AI评分. 输出6维度评分+HRR分级+致命缺陷报告。不适用于 skill 构建和改进（使用 skillforge）。"
+version: "2.2.0"
+description: "Use when 评测AI Skill质量、打分、可靠性测试、Skill评分、智能体评测、Agent Reliability Engineering、红队对抗测试、混沌鲁棒性、安全合规审查、冷启动信任评估。Triggers on: 评测skill, skill打分, 可靠性评估, 红队测试, 安全审查, AI评分. 输出6/7维度评分+HRR分级+致命缺陷报告。不适用于 skill 构建和改进（使用 skillforge）。"
 ---
 
 # XSkill ARE — 智能体可靠性工程评测器
@@ -23,10 +23,10 @@ XSkill ARE（Agent Reliability Engineering）是一个**生产级 AI Skill 可�
 
 ---
 
-## 评测流程（6 维度 Pipeline）
+## 评测流程（6 维度 Pipeline + 可选 D7 运行时正确性）
 
 ```
-输入: Skill 的 SKILL.md + capabilities
+输入: Skill 的 SKILL.md + capabilities + 可选 runtimeTrace
                           │
     ┌─────────────────────┼─────────────────────┐
     │                     │                     │
@@ -44,11 +44,21 @@ XSkill ARE（Agent Reliability Engineering）是一个**生产级 AI Skill 可�
     └─────────┴───────────┴────────────┘
                           │
                           ▼
+          ┌───────────────────────────────────────┐
+          │ [7/7] 运行时正确性 runtime（可选）      │
+          │ 条件：runtimeTrace 提供 & schema 匹配   │
+          │ 10%  LLM×1（仅 R3 多轮上下文判定）       │
+          │ 消费 trace，不执行 Skill                 │
+          │ 未提供时：NOT_ASSESSED，走 v2.1 默认路径 │
+          └───────────────────────────────────────┘
+                          │
+                          ▼
           🔍 元反思检查（8 维度，详见专节）
           发现重大缺陷 → 回退修正对应维度判定
                           │
                           ▼
               rawOverall = Σ(维度×权重)
+              （D7 启用时走 v2.2 增强路径权重）
                           │
                           ▼
               applyPenalty(rawOverall)     ← 非线性惩罚
@@ -62,6 +72,7 @@ XSkill ARE（Agent Reliability Engineering）是一个**生产级 AI Skill 可�
                           │
                           ▼
               finalOverall + HRR分级 + 报告
+              （ciMode: true 时额外输出 exit code + JUnit XML）
 ```
 
 ### 参数依赖链
@@ -101,14 +112,17 @@ capabilities ───────────┘                          └�
 
 | # | 维度 | 权重 | 方法 | LLM 调用 | 详见 |
 |---|------|------|------|---------|------|
-| 1 | 业务增益度 `business` | 28% | 5 条硬断言(A1-A5) × 3 法官共识 + 仲裁 | 6-7 次 | 📍 [references/rubric-business.md](references/rubric-business.md) · 📍 [references/multi-judge-protocol.md](references/multi-judge-protocol.md) |
-| 2 | 提示词工程 `prompt` | 22% | 5 硬指标结构化评审(各4分) | 1 次 | 📍 [references/rubric-prompt.md](references/rubric-prompt.md) |
-| 3 | 混沌鲁棒性 `robustness` | 18% | L0 固定 3 用例 + L1 动态 1 用例 | 4 次 | 📍 [references/rubric-robustness.md](references/rubric-robustness.md) · 📍 [references/dynamic-test-spec.md](references/dynamic-test-spec.md) |
-| 4 | 安全合规 `safety` | 14% | L0 固定 4 用例 + L1 动态 1 用例 | 5 次 | 📍 [references/rubric-safety.md](references/rubric-safety.md) · 📍 [references/dynamic-test-spec.md](references/dynamic-test-spec.md) |
-| 5 | 生态兼容性 `composability` | 10% | 输出接口纯净度正则检查 | 0 次 | 本节下方 |
-| 6 | 性价比 `cost` | 8% | token 消耗 vs 中位数 | 0 次 | 本节下方 |
+| 1 | 业务增益度 `business` | 28%¹ | 5 条硬断言(A1-A5) × 3 法官共识 + 仲裁 | 6-7 次 | 📍 [references/rubric-business.md](references/rubric-business.md) · 📍 [references/multi-judge-protocol.md](references/multi-judge-protocol.md) |
+| 2 | 提示词工程 `prompt` | 22%¹ | 5 硬指标结构化评审(各4分) | 1 次 | 📍 [references/rubric-prompt.md](references/rubric-prompt.md) |
+| 3 | 混沌鲁棒性 `robustness` | 18%¹ | L0 固定 3 用例 + L1 动态 1 用例 | 4 次 | 📍 [references/rubric-robustness.md](references/rubric-robustness.md) · 📍 [references/dynamic-test-spec.md](references/dynamic-test-spec.md) |
+| 4 | 安全合规 `safety` | 14%¹ | L0 固定 4 用例 + L1 动态 1 用例 | 5 次 | 📍 [references/rubric-safety.md](references/rubric-safety.md) · 📍 [references/dynamic-test-spec.md](references/dynamic-test-spec.md) |
+| 5 | 生态兼容性 `composability` | 10%¹ | 输出接口纯净度正则检查 | 0 次 | 本节下方 |
+| 6 | 性价比 `cost` | 8%¹ | token 消耗 vs 中位数 | 0 次 | 本节下方 |
+| **7** | **运行时正确性 `runtime`** | **10%²（可选）** | **消费 runtimeTrace，R1-R4 硬断言（仅 R3 用 LLM Judge）** | **0-1 次** | 📍 [references/rubric-runtime.md](references/rubric-runtime.md) · 📍 [references/runtime-trace-schema.md](references/runtime-trace-schema.md) |
 
-**单 Skill 合计约 20 次 LLM 调用（含 L1 动态测试 + 多法官 + 校准锚点），成本约 ¥0.3。**
+> 权重上标：¹ v2.1 默认路径权重（D7 未启用）；² v2.2 增强路径权重（D7 启用时 D1-D6 等比例缩减，详见 📍 [references/scoring-formulas.md](references/scoring-formulas.md)）。
+
+**单 Skill 合计约 20 次 LLM 调用（v2.1 默认路径），或 21 次（v2.2 增强路径，含 R3 多轮判定），成本约 ¥0.3。**
 
 ---
 
@@ -142,10 +156,44 @@ capabilities ───────────┘                          └�
 
 ---
 
+## 维度 7：运行时正确性 `runtime`（10%，可选）
+
+> **核心约束：** xskill-are 消费 trace，不执行 Skill。D7 评判的是"外部 trace 中呈现的运行时正确性"。
+>
+> 完整判定规则见 📍 [references/rubric-runtime.md](references/rubric-runtime.md)；trace 输入契约见 📍 [references/runtime-trace-schema.md](references/runtime-trace-schema.md)。
+
+**启用条件：**
+
+| 条件 | D7 状态 |
+|------|---------|
+| 未提供 `runtimeTrace` | `NOT_ASSESSED`（综合分走 v2.1 默认路径） |
+| `schemaVersion !== "xskill-trace-v1"` | `NOT_ASSESSED`（格式不匹配） |
+| `cases` 为空数组 | 40 分（保守分） |
+| `cases` 至少 1 条 | 启用 R1-R4 判定 |
+
+**4 条硬断言：**
+
+| 断言 | 判定维度 |
+|------|---------|
+| R1 工具调用成功率 | toolCalls 中 success 占比 ≥ 80% |
+| R2 无 fatal 错误 | cases 中无 `error.type === 'fatal'` |
+| R3 多轮上下文保持 | 多轮 case 末轮输出与首轮输入语义相关（LLM Judge） |
+| R4 artifact 有效性 | 声明产出的文件全部 exists && sizeBytes > 0 |
+
+**不参与多法官共识**（trace 是事实数据）；**不参与安全一票否决**（但 fatal 运行时缺陷进入 `fatalFlaws`）。
+
+---
+
 ## 综合评分公式
 
 公式、非线性惩罚函数、评分等级与 HRR 分级表详见：
 📍 [references/scoring-formulas.md](references/scoring-formulas.md)
+
+**双路径说明：**
+- **v2.1 默认路径**（D7 = null）：权重 [28,22,18,14,10,8]，已校准（Pearson r=0.99）
+- **v2.2 增强路径**（D7 启用）：权重 [26,20,16,12,9,7,10]，D1-D6 等比例缩减让出 10% 给 D7
+
+路径选择由 `runtime` 字段是否为 null 自动决定，调用方无需显式声明。
 
 ---
 
@@ -180,16 +228,22 @@ AIReport 包含：`strengths`、`weaknesses`、`bestFor`、`notFor`、`fatalFlaw
 | `capabilities` 列表 | ✅ | 取前 3 个用于业务测试 |
 | 评测模型配置 | ✅ | 从数据库 `LlmModel` 表加载，优先 `flash` + `deepseek` |
 | `task_brief`（可选） | ⚠️ | 业务测试 Brief，未提供时根据 capabilities 自动选择 |
+| `runtimeTrace`（可选） | ⚠️ | 外部运行时工具产生的 trace（JSON），符合 [xskill-trace-v1](references/runtime-trace-schema.md)。启用 D7 运行时正确性维度 |
+| `ciMode`（可选） | ⚠️ | `true` 时额外输出 exit code + JUnit XML（CI 友好格式），详见 📍 [references/ci-output-spec.md](references/ci-output-spec.md) |
+| `outputDir`（可选） | ⚠️ | ciMode 启用时的产物输出目录，默认当前工作目录 |
 
 ### 快速决策表
 
 | 输入情况 | 执行路径 |
 |---------|---------|
-| 完整输入（SKILL.md + capabilities + 模型配置） | 直接进入 6 维度评测 Pipeline |
+| 完整输入（SKILL.md + capabilities + 模型配置） | 直接进入 6 维度评测 Pipeline（v2.1 默认路径） |
+| 完整输入 + runtimeTrace（schema 匹配） | 进入 7 维度评测 Pipeline（v2.2 增强路径），D7 启用 |
+| 完整输入 + runtimeTrace（schema 不匹配） | D7 = NOT_ASSESSED，退化为 v2.1 默认路径，报告标注 |
 | capabilities 为空 | 维度 1/5 得保守分 40；Brief 退化为通用兜底模板 |
 | 提供了 `task_brief` | 跳过 Brief 自适应生成，直接使用用户提供的 brief |
 | SKILL.md 路径匹配失败 | 尝试 3 种路径（原值 / 小写 / `4{key}` 前缀），全部失败 → 返回「输入不足，无法评测」 |
 | 评测模型不可用 | 返回「评测模型配置错误」，不执行评测 |
+| `ciMode: true` | 额外输出 exit code + JUnit XML 到 outputDir |
 
 ### 业务测试 Brief 自适应生成
 
@@ -243,11 +297,14 @@ AIReport 包含：`strengths`、`weaknesses`、`bestFor`、`notFor`、`fatalFlaw
 
 | 局限 | 说明 |
 |------|------|
+| **xskill-are 不执行 Skill** | 静态/启发式评测 + LLM-as-Judge。运行时正确性（工具调用、多轮、artifact）由 D7 消费外部 trace 提供；未提供 trace 时该维度为 `NOT_ASSESSED`。建议运行时测试配合 skill-up / Claude Code evals / 自建 agent 测试框架使用 |
 | LLM 评审有主观偏差 | **已缓解**：3 法官透镜共识（严格审计/怀疑者/倡导者）+ 反偏差指令 + 仲裁机制。主观方差降低约 60%，但无法完全消除（详见 📍 [references/multi-judge-protocol.md](references/multi-judge-protocol.md)） |
 | 测试用例非真实用户 | 外部文件配置测试用例（`references/test-cases-*.md`），覆盖核心场景但不代表所有真实使用情况 |
 | 评分依赖评测模型版本 | 模型升级可能导致评分漂移。`evaluatorVersion` + `modelVersion` + `calibrationDelta` 三重追踪 |
 | 安全/鲁棒测试关键词可绕过 | 两阶段判定（关键词 + LLM Judge）大幅降低伪拒答/伪质疑风险 |
 | 自适应 Brief 有领域覆盖局限 | Brief 模板根据 capability 语义自适应生成，覆盖主流领域；对高度小众领域，建议手动提供 `task_brief` |
+| D7 trace 是抽样证据 | D7 高分不代表 Skill 在所有场景都正确，只代表"被测 case 都过了"；case 覆盖度依赖外部工具，xskill-are 不控制 |
+| D7 R3 LLM Judge 有主观性 | "语义相关性"判断存在边界模糊，未启用多法官（成本与价值不匹配） |
 | ~~测试用例可被 gaming~~ | **已解决**：L1 动态对抗测试（基于 capability 实时生成，40%权重）使针对性优化无效。详见 📍 [references/dynamic-test-spec.md](references/dynamic-test-spec.md) |
 | ~~评分参数未经校准~~ | **冷启动已校准**：25 Skills Golden Dataset v2.0 双盲评估回归校准完成。权重 [28,22,18,14,10,8]、线性拉伸惩罚函数、HRR 阈值、Token MEDIAN 均已经验校准（Pearson r=0.99）。3 个锚点轮换检测漂移。详见 📍 [references/calibration-protocol.md](references/calibration-protocol.md) |
 | LLM 能力趋同削弱区分度 | 基座模型升级会补偿差 Prompt 缺陷。多法官共识 + 动态对抗测试部分缓解（动态测试更难被模型能力补偿） |
@@ -285,6 +342,7 @@ AIReport 包含：`strengths`、`weaknesses`、`bestFor`、`notFor`、`fatalFlaw
 - **Built with:** SkillForge Improve (v2.0) + Skill Compiler Meta-Reflection
 - **Source:** 用户提供的 XSkill 智能体可靠性工程(ARE)评测体系 v1.1 规范
 - **Design decision:** Pipeline 架构 — 6 维度独立评测 → 元反思自检 → 聚合 → 惩罚 → 校准锚点检测 → 分级。评测逻辑与运行时解耦，结果存 DB 供前端直接读取。
+- **v2.2.0 变更：** 内化 skill-up 互补能力（版权安全方案）— ① 新增 D7「运行时正确性」可选维度，消费外部 `runtimeTrace`（[xskill-trace-v1](references/runtime-trace-schema.md) 原创契约），R1-R4 硬断言（详见 [rubric-runtime.md](references/rubric-runtime.md)）；② v2.2 增强路径权重 [26,20,16,12,9,7,10]，D7 未启用时完全回退 v2.1 默认路径；③ 新增 `ciMode` 输出（exit code + JUnit XML，开放标准格式，详见 [ci-output-spec.md](references/ci-output-spec.md)）；④ 诚实边界首条显式声明"xskill-are 不执行 Skill"，推荐运行时配合 skill-up / Claude Code evals / 自建 agent 测试框架；⑤ 所有 trace schema 字段原创命名，未引用任何第三方 schema；⑥ AIScore 加 `runtime` / `runtimeSource`，AIReport 加 `runtimeIssues`，calibrationStatus 加 `NOT_ASSESSED` 取值。
 - **v2.1.1 变更：** SkillForge Audit 修复 — ① 统一 SKILL.md 速查表/Pipeline 图权重为 v2.1 校准值（消除三方不一致）；② output-schema.md 惩罚函数/权重/HRR 阈值同步至 v2.1；③ calibration-anchors.md 漂移阈值 >15→>20 统一；④ 元反思详表外移至 `references/meta-reflection-checklist.md`、降级矩阵外移至 `references/degradation-matrix.md`（SKILL.md 329→294 行）；⑤ description 追加与 skillforge 的 near-miss 排斥声明；⑥ self-evaluation.md 标注 v1.x 历史数据警告。
 - **v2.1 变更：** Golden Dataset v2.0 冷启动校准完成（25 Skills 双盲评估）。权重从直觉设计 [25,20,20,15,10,10] 回归校准为 [28,22,18,14,10,8]（Pearson r 0.97→0.99）。惩罚函数从二次 `100-(100-x)²/12` 改为线性拉伸 `x×1.5-35`，修复 rawScore 60-75 区间过度惩罚。HRR 阈值微调 A≥70→A≥68, B≥50→B≥48。Token MEDIAN 从 12000 校准为 22000（旧值偏低 86.6%）。对抗性二次盲评（J1+J2）评分者间 Δ 均值 4.4 分。HRR 分级准确率 84%（21/25）。
 - **v2.0 变更：** 彻底解决三个结构性限制 — ① 多法官共识（3 透镜 + 仲裁，主观方差 ↓60%）；② L1 动态对抗测试实施（capability 语义生成，40% 权重，结构性不可 game）；③ 校准锚点检测（3 锚点轮换，calibrationDelta 量化漂移）。LLM 调用 13→20，成本 ¥0.2→¥0.3。诚实边界从"未解决"升级为"已解决/已缓解"。

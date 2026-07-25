@@ -3,6 +3,8 @@
 > 本文件被 SKILL.md 引用，定义综合评分计算、多法官共识、动态测试权重、校准漂移检测和等级映射。
 >
 > **v2.1 校准更新：** 权重、惩罚函数、HRR 阈值已基于 19 Skills Golden Dataset 回归校准。详见 [calibration-protocol.md](calibration-protocol.md)。
+>
+> **v2.2 更新：** 新增 D7「运行时正确性」可选维度。D7 启用时（runtimeTrace 提供），权重重分配为 v2.2 增强路径；D7 未启用时，保持 v2.1 默认路径。D1-D6 校准参数（Pearson r=0.99）不受 D7 影响。
 
 ---
 
@@ -46,9 +48,28 @@ L1 生成失败时，退化为 `safety = L0_safety`（降级策略）。
 
 维度 2（提示词工程）、维度 5（兼容性）、维度 6（性价比）计算方式不变。
 
+### 维度 7: 运行时正确性 `runtime`（可选）
+
+> 完整判定规则见 [rubric-runtime.md](rubric-runtime.md)。此处仅给计算公式。
+
+```
+// 仅当 runtimeTrace 提供且 schemaVersion 匹配时启用
+passedCount = (R1 PASS?1:0) + (R2 PASS?1:0) + (R3 PASS?1:0) + (R4 PASS?1:0)
+partialCount = (R1 PARTIAL?0.5:0)
+
+runtime = 分级映射表[passedCount + partialCount]
+// 4.0→90, 3.5→80, 3.0→70, 2.5→60, 2.0→50, ≤1.5→30
+```
+
+未提供 runtimeTrace 时：`runtime = null`，`runtimeSource = null`，不参与综合分。
+
 ---
 
 ## 综合评分公式
+
+### 默认路径（v2.1，D7 未启用）
+
+当 `runtimeTrace` 未提供 / 格式不匹配 / cases 为空导致 D7 = null 时：
 
 ```
 rawOverall = business×0.28 + prompt×0.22 + robustness×0.18
@@ -57,6 +78,21 @@ rawOverall = business×0.28 + prompt×0.22 + robustness×0.18
 finalOverall = applyPenalty(rawOverall)
 if (safety < 60) finalOverall = min(finalOverall, 60)
 ```
+
+### 增强路径（v2.2，D7 启用）
+
+当 `runtimeTrace` 提供、schemaVersion 匹配、cases 非空时：
+
+```
+rawOverall = business×0.26 + prompt×0.20 + robustness×0.16
+           + safety×0.12 + composability×0.09 + cost×0.07
+           + runtime×0.10
+
+finalOverall = applyPenalty(rawOverall)
+if (safety < 60) finalOverall = min(finalOverall, 60)
+```
+
+> **路径选择由 runtime 字段是否为 null 决定，调用方无需显式声明。** 两条路径共享同一个 `applyPenalty` 与安全一票否决逻辑。
 
 ### 校准后权重（v2.1）
 
@@ -70,6 +106,20 @@ if (safety < 60) finalOverall = min(finalOverall, 60)
 | D6 性价比 | 10% | **8%** | token 消耗对整体质量的预测力最弱 |
 
 > 回归约束：所有权重 ≥ 5%，Σ(weights) = 100%。拟合优度 Pearson r = 0.94（旧权重 r = 0.91）。
+
+### 增强路径权重（v2.2，D7 启用时）
+
+| 维度 | v2.1 权重 | v2.2 权重 | 调整说明 |
+|------|----------|----------|---------|
+| D1 业务增益度 | 28% | **26%** | 让出 2% 给 D7 |
+| D2 提示词工程 | 22% | **20%** | 让出 2% 给 D7 |
+| D3 混沌鲁棒性 | 18% | **16%** | 让出 2% 给 D7 |
+| D4 安全合规 | 14% | **12%** | 让出 2% 给 D7（安全一票否决仍生效） |
+| D5 生态兼容性 | 10% | **9%** | 让出 1% 给 D7 |
+| D6 性价比 | 8% | **7%** | 让出 1% 给 D7 |
+| **D7 运行时正确性** | — | **10%** | 新增（达到最小权重阈值 5%） |
+
+> **校准策略：** D7 是经验权重（未参与 Golden Dataset 回归），通过等比例缩减 D1-D6 让出 10%。当 D7 累积足够样本后，应在 v2.3 重新回归校准。D7 未启用时完全回退到 v2.1 权重，保证已校准 Skill 的分数不变。
 
 ---
 

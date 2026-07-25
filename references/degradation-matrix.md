@@ -17,3 +17,8 @@
 | 元反思发现重大缺陷 | 回退至对应维度重新判定，修正后继续 | 视缺陷所在维度 |
 | 英文测试用例关键词未命中 | 进入阶段 2（LLM Judge）兜底验证 | D3, D4 |
 | 校准锚点评测 API 失败 | 跳过锚点检测，`calibrationStatus = NOT_ASSESSED` | 全部（置信度标注） |
+| `runtimeTrace` 字段缺失或为 null | D7 = `NOT_ASSESSED`（`runtime = null`），综合分走 v2.1 默认路径，报告标注「运行时未评测」 | D7 |
+| `runtimeTrace.cases` 为空数组 | D7 = 40（保守分），`runtimeSource = 'external_trace'`，报告标注「运行时证据不足」 | D7 |
+| `runtimeTrace.schemaVersion !== "xskill-trace-v1"` | 拒绝消费，D7 = `NOT_ASSESSED`，报告标注「trace 格式不匹配」 | D7 |
+| D7 R3 所有 case 均为单轮（无多轮场景） | R3 退化为 PASS，报告标注「未评测多轮场景」 | D7 |
+| `ciMode: true` 但 outputDir 不可写 | 退化为仅输出 stdout 摘要 + exit code，跳过 JUnit XML 文件写入 | 输出格式 |
