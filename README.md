@@ -450,3 +450,12 @@ function applyPenalty(rawScore):
 </div>
 
 Copyright 2026 Qomob.ai & XSkill.dev
+
+---
+
+## License
+
+Copyright © 2026 `https://xskill.dev` . All rights reserved.
+
+- **Author**: `https://xskill.dev`
+- **Copyright**: Qomob.AI
